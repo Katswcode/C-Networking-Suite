@@ -1,0 +1,6 @@
+# Executables and binaries
+sniffer
+*.o
+
+# Local VS Code settings
+.vscode/
