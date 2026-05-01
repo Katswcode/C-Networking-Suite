@@ -21,7 +21,7 @@ A Layer 2 (Data Link) sniffer that captures and decodes Ethernet frames and IPv4
 
    gcc 01-raw-sniffer/sniffer.c -o sniffer
 
-   **Execute:**
+2. **Execute:**
 
    ```bash
 
