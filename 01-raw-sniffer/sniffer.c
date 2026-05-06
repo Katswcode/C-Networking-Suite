@@ -271,8 +271,9 @@ int main(int argc, char const *argv[])
 
                 struct tcphdr *tcp = (struct tcphdr *)(buffer + sizeof(struct ethhdr) + (ip->ihl * 4));
 
-                printf("TCP Port: %u (%s)\n", ntohs(tcp->source), get_port_name(ntohs(tcp->source)));
+                printf("TCP protocol | Origin Port: %u (%s) | Destiny Port: %u (%s)\n", ntohs(tcp->source), get_port_name(ntohs(tcp->source)), ntohs(tcp->dest), get_port_name(ntohs(tcp->dest)));
         
+
                 }
 
                 // UDP protocol
@@ -283,7 +284,7 @@ int main(int argc, char const *argv[])
 
                 struct udphdr *udp = (struct udphdr*)(buffer + sizeof(struct ethhdr) + (ip->ihl *4));
 
-                printf("UDP Port: %u (%s)\n", ntohs(udp->source), get_port_name(ntohs(udp->source))); 
+                printf("UDP protocol | Origin Port: %u (%s) | Destiny Port: %u (%s)\n", ntohs(udp->source), get_port_name(ntohs(udp->source)), ntohs(udp->dest), get_port_name(ntohs(udp->dest))); 
 
                 }
         
