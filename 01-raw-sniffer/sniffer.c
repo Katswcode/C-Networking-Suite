@@ -9,7 +9,9 @@
 #include <linux/udp.h>
 #include <stdint.h>
 #include <sys/time.h>
-
+#include <string.h>
+#include <signal.h>
+#include <stdlib.h>
 
 // Global Header Structure of PCAP
 
@@ -41,7 +43,9 @@ typedef struct pcaprec_hdr_s
 const char* get_port_name(uint16_t port) 
 
 {
-    switch (port) {
+    switch (port) 
+
+    {
         case 80:   return "HTTP";
         case 443:  return "HTTPS (TLS)";
         case 53:   return "DNS";
@@ -52,6 +56,30 @@ const char* get_port_name(uint16_t port)
     }
 }
 
+// global variable to store the file pointer of the pcap file, so we can access it in the signal handler to close it properly when the user interrupts the program with Ctrl+C
+
+FILE *logfile = NULL; 
+
+// Function to handle Ctrl+C
+
+void handle_sigint(int sig) 
+
+{
+    printf("\n\n[+] Capture interrupted by the user (Signal %d).\n", sig);
+    
+    if (logfile != NULL) 
+
+    {
+        fclose(logfile);
+
+        printf("[+] File 'capture.pcap' closed correctly. Data safe!\n");
+    }
+    
+    printf("[+] exiting sniffer...\n");
+
+    exit(0); // Termina el programa exitosamente
+}
+
 
 // start main function to create the sniffer
 
@@ -59,28 +87,38 @@ int main(int argc, char const *argv[])
 
 {
 
-    // Create a conditional to check that the argument counter read 2 words (the name of the program and the network interface)
+    // register the signal handler for SIGINT to allow graceful shutdown of the program when the user presses Ctrl+C
 
-    if( argc != 2)
+    signal(SIGINT, handle_sigint);
+
+    // allows us to run the program with the following syntax: ./sniffer <interface> [ip_to_filter] (the second parameter is optional to filter by IP)
+
+    if (argc < 2 || argc > 3)
     
     {
-
-        printf("The quantity of argc is different than 2, the result is %d \n", argc);
+        printf("Use: %s <Interface> [filter ip]\n", argv[0]);
 
         return 1;
     }
 
-    // If the number is 2 we can start developing the sniffer
+    const char *target_ip = NULL;
 
-    else
-
+    if (argc == 3)
+    
     {
 
-        // Check the number of arguments counted and the number of the Network interface
+        // we use argv[2] to get the IP address to filter and save it in target_ip variable
 
-        printf("The number of argc is %d \n",argc);
-        
-        printf("The network interface is %s \n", argv[1]);
+        target_ip = argv[2];
+
+        printf("Mode: Filter by IP: %s\n", target_ip);
+    }
+
+    else
+    
+    {
+        printf("Mode: Capturing all traffic on %s\n", argv[1]);
+    }
         
         /*raw socket function that has AF_PACKET (tell that  we want to be in layer 2 of the OSI model), SOCK RAW (Provides the raw packet, including the link-level header (Ethernet)), 
         and the htons filter that allow us to capture all protocols with the ETH_P_ALL parameter */ 
@@ -114,23 +152,36 @@ int main(int argc, char const *argv[])
 
     // open file in write binary mode to save the captured packets in a pcap file
 
-    FILE *logfile = fopen("capture.pcap", "wb");
-    if(logfile == NULL) {
+    logfile = fopen("capture.pcap", "wb");
+
+    if(logfile == NULL) 
+
+    {
         printf("Error al abrir el archivo PCAP.\n");
+
         return 1;
     }
 
     // fill and write the global header of the pcap file
 
     pcap_hdr_t global_hdr;
+
     global_hdr.magic_number = 0xa1b2c3d4; // Wireshark search magic number to identify the file as a pcap file
+
     global_hdr.version_major = 2;
+
     global_hdr.version_minor = 4;
+
     global_hdr.thiszone = 0;
+
     global_hdr.sigfigs = 0;
+
     global_hdr.snaplen = 65535; // max length of captured packets
+
     global_hdr.network = 1;     // Refers to layer 2 (Ethernet)
+    
     fwrite(&global_hdr, sizeof(pcap_hdr_t), 1, logfile);
+
     fflush(logfile); // forze writing the header to the file
 
     while(1) 
@@ -146,23 +197,30 @@ int main(int argc, char const *argv[])
 
     int data_size = recvfrom(raw_socket, buffer, 65536, 0, NULL, NULL);
 
-    // 1. get the current timestamp to fill the packet header of the pcap file (we use gettimeofday to get the time in seconds and microseconds)
+        // 1. get the current timestamp to fill the packet header of the pcap file (we use gettimeofday to get the time in seconds and microseconds)
 
         struct timeval tv;
+
         gettimeofday(&tv, NULL);
 
         // 2. fill the packet header
 
         pcaprec_hdr_t pkt_hdr;
+
         pkt_hdr.ts_sec = tv.tv_sec;
+
         pkt_hdr.ts_usec = tv.tv_usec;
+
         pkt_hdr.incl_len = data_size; // captured size of the packet (could be smaller than orig_len if snaplen is smaller)
+
         pkt_hdr.orig_len = data_size; // original size of the packet (could be larger than incl_len if snaplen is smaller)
 
         // 3. write the packet header and raw data to the pcap file
 
         fwrite(&pkt_hdr, sizeof(pcaprec_hdr_t), 1, logfile);
+
         fwrite(buffer, data_size, 1, logfile);
+        
         fflush(logfile); // save in real time the captured packet in the pcap file
 
         // If the data size is less than 0 there is an error if not print the length of the packet
@@ -172,6 +230,8 @@ int main(int argc, char const *argv[])
         {
 
         printf("Error reciving packet, data size is: %d", data_size);
+        
+        continue;
 
         }
 
@@ -179,41 +239,61 @@ int main(int argc, char const *argv[])
     
         {
 
-        printf("The length of the packet is: %d \n", data_size);
-
-        // printing the MAC destiny, origin and type of the packets
-        
-        printf("%.2X:%.2X:%.2X:%.2X:%.2X:%.2X \n", eth->h_dest[0], eth->h_dest[1],eth->h_dest[2],eth->h_dest[3],eth->h_dest[4],eth->h_dest[5]);
-
-        printf("%.2X:%.2X:%.2X:%.2X:%.2X:%.2X \n", eth->h_source[0], eth->h_source[1],eth->h_source[2],eth->h_source[3],eth->h_source[4],eth->h_source[5]);
-
-        printf("%.4X \n", eth->h_proto);
-
             // ntohs (Network To Host Short) fliping bytes to allows processor to read it correctly
 
             if(ntohs(eth->h_proto) == 0x0800) 
 
             {
 
-            printf("¡Catching IPv4 packets! \n");
-
             // Creating a casting to read ip destiny and origin addresses (we sum the size of ethhdr to buffer to skip the ethernet layer and go to ip layer)
 
             struct iphdr *ip = (struct iphdr *)(buffer + sizeof(struct ethhdr));
 
-            struct in_addr source_ip, dest_ip;
+            // Convert the ip addresses from binary to human readable format using inet_ntop and store them in src_ip_str and dst_ip_str
 
-            source_ip.s_addr = ip->saddr;
+            char src_ip_str[INET_ADDRSTRLEN];
 
-            dest_ip.s_addr = ip->daddr;
+            char dst_ip_str[INET_ADDRSTRLEN];
 
-            // inet_ntoa: Internet Network To ASCII (byte converter to ASCII readable text)
+            inet_ntop(AF_INET, &(ip->saddr), src_ip_str, INET_ADDRSTRLEN);
 
-            //printing IP source addresses and destination addresses
+            inet_ntop(AF_INET, &(ip->daddr), dst_ip_str, INET_ADDRSTRLEN);
 
-            printf("IP Origin: %s \n", inet_ntoa(source_ip));
+            // filter logic
 
-            printf("IP Destination: %s \n", inet_ntoa(dest_ip));
+            // if the user provided a target IP to filter, we compare the source and destination IPs of the packet with the target IP, if neither matches, we skip printing the packet and continue to the next iteration of the loop to capture the next packet
+
+            if (target_ip != NULL) 
+            
+            {
+
+                if (strcmp(src_ip_str, target_ip) != 0 && strcmp(dst_ip_str, target_ip) != 0) 
+
+                {
+                    // dont print the packet if it doesn't match the filter and continue to the next iteration of the loop to capture the next packet
+
+                    continue; 
+                }
+            }
+
+            // If we reach here, it means the packet passed the filter (or there's no filter)
+
+            // If the packet passed the filter, print its details (length, MAC addresses, IP addresses, payload, and protocol information)
+
+            printf("\n=================================================\n");
+
+            printf("¡Catching IPv4 packets! \n");
+
+            printf("The length of the packet is: %d \n", data_size);
+
+            printf("MAC Dest: %.2X:%.2X:%.2X:%.2X:%.2X:%.2X \n", eth->h_dest[0], eth->h_dest[1],eth->h_dest[2],eth->h_dest[3],eth->h_dest[4],eth->h_dest[5]);
+
+            printf("MAC Src: %.2X:%.2X:%.2X:%.2X:%.2X:%.2X \n", eth->h_source[0], eth->h_source[1],eth->h_source[2],eth->h_source[3],eth->h_source[4],eth->h_source[5]);
+
+            printf("IP Origin: %s \n", src_ip_str);
+            
+            printf("IP Destination: %s \n", dst_ip_str);
+
 
             unsigned char *payload = buffer + sizeof(struct ethhdr) + (ip->ihl * 4);
 
@@ -294,19 +374,17 @@ int main(int argc, char const *argv[])
 
             {
 
-            printf(" ⚠️ Catching packets, but not IPv4 ⚠️ \n");
+            // print a warning if the packet is not IPv4 and show the protocol that is using in hexadecimal format
+
+            printf(" ⚠️ packet detected but not IPv4, protocol: 0x%04x ⚠️ \n", ntohs(eth->h_proto));
 
             }
-
 
         }
     
 
     } // while(1) finish
 
-
-    } // else finish
-
     return 0 ;
 
-}
+} // main function finish
