@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -143,6 +144,14 @@ int main(int argc, char const *argv[])
 
         }
 
+    
+        if (setsockopt(raw_socket, SOL_SOCKET, SO_BINDTODEVICE, argv[1], strlen(argv[1])) < 0) 
+        
+        {
+        
+        perror("Error Binding the socket to the interface");
+        
+        }
 
     // Creating the buffer to save data memory       
 
@@ -353,6 +362,25 @@ int main(int argc, char const *argv[])
 
                 printf("TCP protocol | Origin Port: %u (%s) | Destiny Port: %u (%s)\n", ntohs(tcp->source), get_port_name(ntohs(tcp->source)), ntohs(tcp->dest), get_port_name(ntohs(tcp->dest)));
         
+                printf("Flags: ");
+
+                    // C determines different values than 0 as true, so if the flag is set it will print the corresponding flag name"
+
+                    if (tcp->syn) printf("[SYN] (Sync) ");
+
+                    if (tcp->ack) printf("[ACK] (Acknowledge) ");
+
+                    if (tcp->fin) printf("[FIN] (Finish) ");
+
+                    if (tcp->rst) printf("[RST] (Reset) ");
+
+                    if (tcp->psh) printf("[PSH] (Push) ");
+
+                    if (tcp->urg) printf("[URG] (Urgent) ");
+
+                    printf("\n");
+
+
 
                 }
 
@@ -367,7 +395,7 @@ int main(int argc, char const *argv[])
                 printf("UDP protocol | Origin Port: %u (%s) | Destiny Port: %u (%s)\n", ntohs(udp->source), get_port_name(ntohs(udp->source)), ntohs(udp->dest), get_port_name(ntohs(udp->dest))); 
 
                 }
-        
+
             } // if IPv4 condition end
 
             else 
