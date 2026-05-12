@@ -82,6 +82,56 @@ void handle_sigint(int sig)
 }
 
 
+// Hex Dump function to orginize the payload in a more readable format, showing the hexadecimal values and their corresponding ASCII characters (if printable) for better analysis of the captured packets
+
+// data: pointer to the data to be dumped, size: size of the data in bytes
+
+void hex_dump(const unsigned char *data, int size) 
+
+{
+    for (int i = 0; i < size; i += 16) 
+    
+    {
+
+        // Printing the offset of the line in hexadecimal format, we use %04x to print it as a 4 digit hexadecimal number, and we add two spaces after it for better readability
+
+        printf("%04x  ", i);
+        
+        for (int j = 0; j < 16; j++) 
+        
+        {
+
+            //
+
+            if (i + j < size)
+
+                printf("%02x ", data[i + j]);
+            else
+
+                printf("   ");
+
+        }
+
+        printf(" | ");
+
+        for (int j = 0; j < 16; j++) 
+        
+        {
+            
+            if (i + j < size) 
+            
+            {
+                unsigned char byte = data[i + j];
+                
+                printf("%c", (byte >= 32 && byte <= 126) ? byte : '.');
+            }
+        }
+
+        printf("\n");
+    }
+}
+
+
 // start main function to create the sniffer
 
 int main(int argc, char const *argv[])
@@ -309,29 +359,17 @@ int main(int argc, char const *argv[])
             int payload_size = data_size - (sizeof(struct ethhdr) + (ip->ihl * 4));
 
             printf("Payload (%d bytes):\n", payload_size);
-        
-                for(int i = 0; i < payload_size; i++) 
+
+                // if the payload size is greater than 0, we call the hex_dump function to print the payload in a readable format, if not we skip it
+
+                if (payload_size > 0) 
                 
                 {
-        
-                    if(payload[i] >= 32 && payload[i] <= 126)
-                
-                    { 
-        
-                    printf("%c", payload[i]);
-                
-                    }
 
-                    else
-                
-                    {
-
-                    printf(".");
-                
-                    }
+                hex_dump(payload, payload_size);
 
                 }
-
+                    
             printf("\n------------------------------\n");
 
                 // ICMP protocol
