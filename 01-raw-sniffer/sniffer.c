@@ -23,13 +23,17 @@
 
 FILE *logfile = NULL; // Global variable to hold the file pointer for the pcap file, we use it in the signal handler to close the file when the user interrupts the program with Ctrl+C
 
+sniffer_stats_t stats = {0}; // Initializing the stats structure to keep track of the captured packets and their types, we will update this structure as we capture packets and use it to print a final report when the user interrupts the program
+
 // Function to handle Ctrl+C
 
 void handle_sigint(int sig) 
 
 {
     printf("\n\n[+] Capture interrupted by the user (Signal %d).\n", sig);
-    
+
+    print_final_stats(stats); // Print the final report of the sniffer using the stats structure that we have been updating during the capture
+
     if (logfile != NULL) 
 
     {
@@ -159,6 +163,11 @@ int main(int argc, char const *argv[])
     
         {
 
+            // Update the stats structure with the captured packet, we increment the total_packets and add the data_size to total_bytes
+
+            stats.total_packets++;
+            stats.total_bytes += data_size;
+
             // Safe the captured packet in the pcap file using the pcap_write_packet function from pcap_handler.c, we pass the file pointer, the buffer with the raw data and the size of the data
 
             pcap_write_packet(logfile, buffer, data_size);
@@ -241,6 +250,8 @@ int main(int argc, char const *argv[])
         
                 { 
 
+                    stats.icmp_packets++;
+
                 struct icmphdr *icmp = (struct icmphdr *)(buffer + sizeof(struct ethhdr) + (ip->ihl * 4));
     
                 printf("ICMP (PING) DETECTED \n");
@@ -258,6 +269,8 @@ int main(int argc, char const *argv[])
                 if(ip->protocol == 6) 
         
                 { 
+
+                    stats.tcp_packets++;
 
                 struct tcphdr *tcp = (struct tcphdr *)(buffer + sizeof(struct ethhdr) + (ip->ihl * 4));
 
@@ -291,6 +304,8 @@ int main(int argc, char const *argv[])
                 
                 {
 
+                    stats.udp_packets++;
+
                 struct udphdr *udp = (struct udphdr*)(buffer + sizeof(struct ethhdr) + (ip->ihl *4));
 
                 printf("UDP protocol | Origin Port: %u (%s) | Destiny Port: %u (%s)\n", ntohs(udp->source), get_port_name(ntohs(udp->source)), ntohs(udp->dest), get_port_name(ntohs(udp->dest))); 
@@ -302,6 +317,9 @@ int main(int argc, char const *argv[])
             else 
 
             {
+                // plus one to count the packet in the other_eth_types if it's not IPv4
+
+                stats.other_eth_types++;
 
             // print a warning if the packet is not IPv4 and show the protocol that is using in hexadecimal format
 

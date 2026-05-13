@@ -70,3 +70,19 @@ void hex_dump(const unsigned char *data, int size)
         printf("\n");
     }
 }
+
+// Function to print the final report of the sniffer, showing the total number of packets captured, the number of IPv4 packets, TCP packets, UDP packets, ICMP packets, non-IPv4/other Ethernet types and the total number of bytes captured.
+
+void print_final_stats(sniffer_stats_t stats) {
+    printf("\n------------------------------------\n");
+    printf("           FINAL REPORT             \n");
+    printf("------------------------------------\n");
+    printf(" Total Packets:    %u\n", stats.total_packets);
+    printf(" IPv4 Packets:     %u\n", stats.ipv4_packets);
+    printf("  - TCP:           %u\n", stats.tcp_packets);
+    printf("  - UDP:           %u\n", stats.udp_packets);
+    printf("  - ICMP:          %u\n", stats.icmp_packets);
+    printf(" Non-IPv4/Other:   %u\n", stats.other_eth_types);
+    printf(" Total Bytes:      %lu bytes\n", stats.total_bytes);
+    printf("------------------------------------\n");
+}
