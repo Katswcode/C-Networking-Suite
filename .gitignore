@@ -2,3 +2,4 @@ sniffer
 a.out
 *.o
 .vscode/
+*.pcap
