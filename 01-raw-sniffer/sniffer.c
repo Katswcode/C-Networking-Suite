@@ -1,3 +1,7 @@
+// sniffer.c file that contains the main logic of the packet sniffer, including the creation of the raw socket, capturing packets, filtering by IP, and writing the captured packets to a pcap file. 
+
+// It also includes signal handling for graceful shutdown and utility functions for hex dumping and getting port names.
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <sys/socket.h>
@@ -14,52 +18,10 @@
 #include <signal.h>
 #include <stdlib.h>
 
-// Global Header Structure of PCAP
+#include "pcap_handler.h"
+#include "packet_utils.h"
 
-typedef struct pcap_hdr_s 
-
-{
-    uint32_t magic_number;   /* magic number */
-    uint16_t version_major;  /* major version number */
-    uint16_t version_minor;  /* minor version number */
-    int32_t  thiszone;       /* GMT to local correction */
-    uint32_t sigfigs;        /* accuracy of timestamps */
-    uint32_t snaplen;        /* max length of captured packets, in octets */
-    uint32_t network;        /* data link type (1 = Ethernet) */
-} pcap_hdr_t;
-
-// Packet Header Structure of PCAP
-
-typedef struct pcaprec_hdr_s 
-
-{
-    uint32_t ts_sec;         /* timestamp seconds */
-    uint32_t ts_usec;        /* timestamp microseconds */
-    uint32_t incl_len;       /* number of octets of packet saved in file */
-    uint32_t orig_len;       /* actual length of packet */
-} pcaprec_hdr_t;
-
-// Function to get the name of the port based on the port number
-
-const char* get_port_name(uint16_t port) 
-
-{
-    switch (port) 
-
-    {
-        case 80:   return "HTTP";
-        case 443:  return "HTTPS (TLS)";
-        case 53:   return "DNS";
-        case 22:   return "SSH";
-        case 21:   return "FTP";
-        case 123:  return "NTP";
-        default:   return "Unknown";
-    }
-}
-
-// global variable to store the file pointer of the pcap file, so we can access it in the signal handler to close it properly when the user interrupts the program with Ctrl+C
-
-FILE *logfile = NULL; 
+FILE *logfile = NULL; // Global variable to hold the file pointer for the pcap file, we use it in the signal handler to close the file when the user interrupts the program with Ctrl+C
 
 // Function to handle Ctrl+C
 
@@ -78,59 +40,8 @@ void handle_sigint(int sig)
     
     printf("[+] exiting sniffer...\n");
 
-    exit(0); // Termina el programa exitosamente
+    exit(0); // finish the program with exit code 0 to indicate successful termination
 }
-
-
-// Hex Dump function to orginize the payload in a more readable format, showing the hexadecimal values and their corresponding ASCII characters (if printable) for better analysis of the captured packets
-
-// data: pointer to the data to be dumped, size: size of the data in bytes
-
-void hex_dump(const unsigned char *data, int size) 
-
-{
-    for (int i = 0; i < size; i += 16) 
-    
-    {
-
-        // Printing the offset of the line in hexadecimal format, we use %04x to print it as a 4 digit hexadecimal number, and we add two spaces after it for better readability
-
-        printf("%04x  ", i);
-        
-        for (int j = 0; j < 16; j++) 
-        
-        {
-
-            //
-
-            if (i + j < size)
-
-                printf("%02x ", data[i + j]);
-            else
-
-                printf("   ");
-
-        }
-
-        printf(" | ");
-
-        for (int j = 0; j < 16; j++) 
-        
-        {
-            
-            if (i + j < size) 
-            
-            {
-                unsigned char byte = data[i + j];
-                
-                printf("%c", (byte >= 32 && byte <= 126) ? byte : '.');
-            }
-        }
-
-        printf("\n");
-    }
-}
-
 
 // start main function to create the sniffer
 
@@ -170,7 +81,19 @@ int main(int argc, char const *argv[])
     {
         printf("Mode: Capturing all traffic on %s\n", argv[1]);
     }
+    
+    // Initialize the pcap file to save the captured packets, we use the pcap_init function from pcap_handler.c to create the file and write the global header, if there is an error we print it and exit the program
+
+    logfile = pcap_init("capture.pcap");
+    
+    if (logfile == NULL) 
+    
+    {
+        perror("Error initializing PCAP");
         
+        return 1;
+    }
+
         /*raw socket function that has AF_PACKET (tell that  we want to be in layer 2 of the OSI model), SOCK RAW (Provides the raw packet, including the link-level header (Ethernet)), 
         and the htons filter that allow us to capture all protocols with the ETH_P_ALL parameter */ 
         
@@ -207,42 +130,6 @@ int main(int argc, char const *argv[])
 
     unsigned char buffer [65536];
 
-    // Creating while to repeatly capture data    
-
-    // open file in write binary mode to save the captured packets in a pcap file
-
-    logfile = fopen("capture.pcap", "wb");
-
-    if(logfile == NULL) 
-
-    {
-        printf("Error al abrir el archivo PCAP.\n");
-
-        return 1;
-    }
-
-    // fill and write the global header of the pcap file
-
-    pcap_hdr_t global_hdr;
-
-    global_hdr.magic_number = 0xa1b2c3d4; // Wireshark search magic number to identify the file as a pcap file
-
-    global_hdr.version_major = 2;
-
-    global_hdr.version_minor = 4;
-
-    global_hdr.thiszone = 0;
-
-    global_hdr.sigfigs = 0;
-
-    global_hdr.snaplen = 65535; // max length of captured packets
-
-    global_hdr.network = 1;     // Refers to layer 2 (Ethernet)
-    
-    fwrite(&global_hdr, sizeof(pcap_hdr_t), 1, logfile);
-
-    fflush(logfile); // forze writing the header to the file
-
     while(1) 
     
     {
@@ -255,32 +142,6 @@ int main(int argc, char const *argv[])
     // Creting the reciving from function to recive data from the raw socket and collecting them in the buffer
 
     int data_size = recvfrom(raw_socket, buffer, 65536, 0, NULL, NULL);
-
-        // 1. get the current timestamp to fill the packet header of the pcap file (we use gettimeofday to get the time in seconds and microseconds)
-
-        struct timeval tv;
-
-        gettimeofday(&tv, NULL);
-
-        // 2. fill the packet header
-
-        pcaprec_hdr_t pkt_hdr;
-
-        pkt_hdr.ts_sec = tv.tv_sec;
-
-        pkt_hdr.ts_usec = tv.tv_usec;
-
-        pkt_hdr.incl_len = data_size; // captured size of the packet (could be smaller than orig_len if snaplen is smaller)
-
-        pkt_hdr.orig_len = data_size; // original size of the packet (could be larger than incl_len if snaplen is smaller)
-
-        // 3. write the packet header and raw data to the pcap file
-
-        fwrite(&pkt_hdr, sizeof(pcaprec_hdr_t), 1, logfile);
-
-        fwrite(buffer, data_size, 1, logfile);
-        
-        fflush(logfile); // save in real time the captured packet in the pcap file
 
         // If the data size is less than 0 there is an error if not print the length of the packet
 
@@ -298,6 +159,10 @@ int main(int argc, char const *argv[])
     
         {
 
+            // Safe the captured packet in the pcap file using the pcap_write_packet function from pcap_handler.c, we pass the file pointer, the buffer with the raw data and the size of the data
+
+            pcap_write_packet(logfile, buffer, data_size);
+
             // ntohs (Network To Host Short) fliping bytes to allows processor to read it correctly
 
             if(ntohs(eth->h_proto) == 0x0800) 
@@ -310,9 +175,7 @@ int main(int argc, char const *argv[])
 
             // Convert the ip addresses from binary to human readable format using inet_ntop and store them in src_ip_str and dst_ip_str
 
-            char src_ip_str[INET_ADDRSTRLEN];
-
-            char dst_ip_str[INET_ADDRSTRLEN];
+            char src_ip_str[INET_ADDRSTRLEN], dst_ip_str[INET_ADDRSTRLEN];
 
             inet_ntop(AF_INET, &(ip->saddr), src_ip_str, INET_ADDRSTRLEN);
 
