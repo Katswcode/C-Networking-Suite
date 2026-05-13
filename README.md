@@ -24,11 +24,11 @@ A Layer 2 (Data Link) sniffer that captures and decodes Ethernet frames and IPv4
 2. **Execute:**
    ```bash
 
-      #capture all traffic on an interface:
+      #Capture all traffic on an interface:
 
       sudo ./sniffer [interface_name]
 
-      #capture and filter by a specific IP:
+      #Capture and filter by a specific IP:
 
       sudo ./sniffer [interface_name] [target_ip]
 
@@ -39,7 +39,7 @@ A Layer 2 (Data Link) sniffer that captures and decodes Ethernet frames and IPv4
    make clean
 
 
-Requirements
+### Requirements
 
     Linux OS (tested on Ubuntu)
 
