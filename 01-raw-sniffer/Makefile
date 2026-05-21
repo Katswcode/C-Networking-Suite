@@ -4,7 +4,7 @@ CC = gcc
 
 CFLAGS = -Wall -Wextra
 
-OBJ = sniffer.o pcap_handler.o packet_utils.o
+OBJ = sniffer.o pcap_handler.o packet_utils.o app_analyzer.o
 
 TARGET = sniffer
 
@@ -16,5 +16,5 @@ $(TARGET):	$(OBJ)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $<
 
-clean:		
+clean:
 	rm -f *.o $(TARGET) capture.pcap

@@ -1,4 +1,4 @@
-// sniffer.c file that contains the main logic of the packet sniffer, including the creation of the raw socket, capturing packets, filtering by IP, and writing the captured packets to a pcap file. 
+// sniffer.c file that contains the main logic of the packet sniffer, including the creation of the raw socket, capturing packets, filtering by IP, and writing the captured packets to a pcap file.
 
 // It also includes signal handling for graceful shutdown and utility functions for hex dumping and getting port names.
 
@@ -20,6 +20,7 @@
 
 #include "pcap_handler.h"
 #include "packet_utils.h"
+#include "app_analyzer.h"
 
 FILE *logfile = NULL; // Global variable to hold the file pointer for the pcap file, we use it in the signal handler to close the file when the user interrupts the program with Ctrl+C
 
@@ -27,21 +28,21 @@ sniffer_stats_t stats = {0}; // Initializing the stats structure to keep track o
 
 // Function to handle Ctrl+C
 
-void handle_sigint(int sig) 
+void handle_sigint(int sig)
 
 {
     printf("\n\n[+] Capture interrupted by the user (Signal %d).\n", sig);
 
     print_final_stats(stats); // Print the final report of the sniffer using the stats structure that we have been updating during the capture
 
-    if (logfile != NULL) 
+    if (logfile != NULL)
 
     {
         fclose(logfile);
 
         printf("[+] File 'capture.pcap' closed correctly. Data safe!\n");
     }
-    
+
     printf("[+] exiting sniffer...\n");
 
     exit(0); // finish the program with exit code 0 to indicate successful termination
@@ -60,7 +61,7 @@ int main(int argc, char const *argv[])
     // allows us to run the program with the following syntax: ./sniffer <interface> [ip_to_filter] (the second parameter is optional to filter by IP)
 
     if (argc < 2 || argc > 3)
-    
+
     {
         printf("Use: %s <Interface> [filter ip]\n", argv[0]);
 
@@ -70,7 +71,7 @@ int main(int argc, char const *argv[])
     const char *target_ip = NULL;
 
     if (argc == 3)
-    
+
     {
 
         // we use argv[2] to get the IP address to filter and save it in target_ip variable
@@ -81,26 +82,26 @@ int main(int argc, char const *argv[])
     }
 
     else
-    
+
     {
         printf("Mode: Capturing all traffic on %s\n", argv[1]);
     }
-    
+
     // Initialize the pcap file to save the captured packets, we use the pcap_init function from pcap_handler.c to create the file and write the global header, if there is an error we print it and exit the program
 
     logfile = pcap_init("capture.pcap");
-    
-    if (logfile == NULL) 
-    
+
+    if (logfile == NULL)
+
     {
         perror("Error initializing PCAP");
-        
+
         return 1;
     }
 
-        /*raw socket function that has AF_PACKET (tell that  we want to be in layer 2 of the OSI model), SOCK RAW (Provides the raw packet, including the link-level header (Ethernet)), 
-        and the htons filter that allow us to capture all protocols with the ETH_P_ALL parameter */ 
-        
+        /*raw socket function that has AF_PACKET (tell that  we want to be in layer 2 of the OSI model), SOCK RAW (Provides the raw packet, including the link-level header (Ethernet)),
+        and the htons filter that allow us to capture all protocols with the ETH_P_ALL parameter */
+
         int raw_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 
         // if the raw_socket has a negative number we have and error if not we have the ID of the socket
@@ -113,7 +114,7 @@ int main(int argc, char const *argv[])
 
         }
 
-        else 
+        else
 
         {
 
@@ -121,24 +122,24 @@ int main(int argc, char const *argv[])
 
         }
 
-    
-        if (setsockopt(raw_socket, SOL_SOCKET, SO_BINDTODEVICE, argv[1], strlen(argv[1])) < 0) 
-        
+
+        if (setsockopt(raw_socket, SOL_SOCKET, SO_BINDTODEVICE, argv[1], strlen(argv[1])) < 0)
+
         {
-        
+
         perror("Error Binding the socket to the interface");
-        
+
         }
 
-    // Creating the buffer to save data memory       
+    // Creating the buffer to save data memory
 
     unsigned char buffer [65536];
 
-    while(1) 
-    
+    while(1)
+
     {
 
-    // Typecasting the buffer reading the value trough eth  
+    // Typecasting the buffer reading the value trough eth
 
     struct ethhdr *eth = (struct ethhdr *)buffer;
 
@@ -150,17 +151,17 @@ int main(int argc, char const *argv[])
         // If the data size is less than 0 there is an error if not print the length of the packet
 
         if(data_size < 0)
-    
+
         {
 
         printf("Error reciving packet, data size is: %d", data_size);
-        
+
         continue;
 
         }
 
         else
-    
+
         {
 
             // Update the stats structure with the captured packet, we increment the total_packets and add the data_size to total_bytes
@@ -174,7 +175,7 @@ int main(int argc, char const *argv[])
 
             // ntohs (Network To Host Short) fliping bytes to allows processor to read it correctly
 
-            if(ntohs(eth->h_proto) == 0x0800) 
+            if(ntohs(eth->h_proto) == 0x0800)
 
             {
 
@@ -194,16 +195,16 @@ int main(int argc, char const *argv[])
 
             // if the user provided a target IP to filter, we compare the source and destination IPs of the packet with the target IP, if neither matches, we skip printing the packet and continue to the next iteration of the loop to capture the next packet
 
-            if (target_ip != NULL) 
-            
+            if (target_ip != NULL)
+
             {
 
-                if (strcmp(src_ip_str, target_ip) != 0 && strcmp(dst_ip_str, target_ip) != 0) 
+                if (strcmp(src_ip_str, target_ip) != 0 && strcmp(dst_ip_str, target_ip) != 0)
 
                 {
                     // dont print the packet if it doesn't match the filter and continue to the next iteration of the loop to capture the next packet
 
-                    continue; 
+                    continue;
                 }
             }
 
@@ -222,7 +223,7 @@ int main(int argc, char const *argv[])
             printf("MAC Src: %.2X:%.2X:%.2X:%.2X:%.2X:%.2X \n", eth->h_source[0], eth->h_source[1],eth->h_source[2],eth->h_source[3],eth->h_source[4],eth->h_source[5]);
 
             printf("IP Origin: %s \n", src_ip_str);
-            
+
             printf("IP Destination: %s \n", dst_ip_str);
 
 
@@ -234,48 +235,48 @@ int main(int argc, char const *argv[])
 
                 // if the payload size is greater than 0, we call the hex_dump function to print the payload in a readable format, if not we skip it
 
-                if (payload_size > 0) 
-                
+                if (payload_size > 0)
+
                 {
 
                 hex_dump(payload, payload_size);
 
                 }
-                    
+
             printf("\n------------------------------\n");
 
                 // ICMP protocol
 
-                if(ip->protocol == 1) 
-        
-                { 
+                if(ip->protocol == 1)
+
+                {
 
                     stats.icmp_packets++;
 
                 struct icmphdr *icmp = (struct icmphdr *)(buffer + sizeof(struct ethhdr) + (ip->ihl * 4));
-    
+
                 printf("ICMP (PING) DETECTED \n");
 
                 printf("Type: %d\n", icmp->type);
-    
+
                     if(icmp->type == 8) printf("It's a Request\n");
 
-                    if(icmp->type == 0) printf("It's a Reply\n");   
+                    if(icmp->type == 0) printf("It's a Reply\n");
 
                 }
 
                 // TCP protocol
 
-                if(ip->protocol == 6) 
-        
-                { 
+                if(ip->protocol == 6)
+
+                {
 
                     stats.tcp_packets++;
 
                 struct tcphdr *tcp = (struct tcphdr *)(buffer + sizeof(struct ethhdr) + (ip->ihl * 4));
 
                 printf("TCP protocol | Origin Port: %u (%s) | Destiny Port: %u (%s)\n", ntohs(tcp->source), get_port_name(ntohs(tcp->source)), ntohs(tcp->dest), get_port_name(ntohs(tcp->dest)));
-        
+
                 printf("Flags: ");
 
                     // C determines different values than 0 as true, so if the flag is set it will print the corresponding flag name"
@@ -301,20 +302,36 @@ int main(int argc, char const *argv[])
                 // UDP protocol
 
                 if(ip->protocol == 17)
-                
+
                 {
 
                     stats.udp_packets++;
 
                 struct udphdr *udp = (struct udphdr*)(buffer + sizeof(struct ethhdr) + (ip->ihl *4));
 
-                printf("UDP protocol | Origin Port: %u (%s) | Destiny Port: %u (%s)\n", ntohs(udp->source), get_port_name(ntohs(udp->source)), ntohs(udp->dest), get_port_name(ntohs(udp->dest))); 
+                printf("UDP protocol | Origin Port: %u (%s) | Destiny Port: %u (%s)\n", ntohs(udp->source), get_port_name(ntohs(udp->source)), ntohs(udp->dest), get_port_name(ntohs(udp->dest)));
+
+                uint16_t src_port = ntohs(udp->source);
+
+                uint16_t dst_port = ntohs(udp->dest);
+
+                if (src_port == 53 || dst_port == 53)
+
+                {
+                    // calculate the pointer to the DNS payload by adding the sizes of the Ethernet header, IP header, and UDP header to the buffer pointer
+
+                    unsigned char *dns_payload = buffer + sizeof(struct ethhdr) + (ip->ihl * 4) + sizeof(struct udphdr);
+
+                    int dns_payload_size = data_size - (sizeof(struct ethhdr) + (ip->ihl * 4) + sizeof(struct udphdr));
+
+                    analyze_dns(dns_payload, dns_payload_size);
+                }
 
                 }
 
             } // if IPv4 condition end
 
-            else 
+            else
 
             {
                 // plus one to count the packet in the other_eth_types if it's not IPv4
@@ -328,7 +345,7 @@ int main(int argc, char const *argv[])
             }
 
         }
-    
+
 
     } // while(1) finish
 
