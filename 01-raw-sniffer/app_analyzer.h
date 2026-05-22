@@ -1,3 +1,5 @@
+// app analyzer.h - Header file for the application layer analyzer of our sniffer, we will use it to define the structure of the DNS header and the function prototype for analyzing DNS packets
+
 #ifndef APP_ANALYZER_H
 #define APP_ANALYZER_H
 
@@ -16,8 +18,10 @@ typedef struct
     uint16_t add_count;   // Number of additional records
 } dns_header_t;
 
-// Main function that will be called by the sniffer to analyze the application layer packet
+// Function prototypes for analyzing DNS and HTTP packets, we will implement these functions in app_analyzer.c to detect and parse the application layer protocols in the captured packets
 
 void analyze_dns(const unsigned char *payload, int payload_size);
+
+void analyze_http(const unsigned char *payload, int payload_size);
 
 #endif

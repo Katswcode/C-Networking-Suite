@@ -295,6 +295,29 @@ int main(int argc, char const *argv[])
 
                     printf("\n");
 
+                uint16_t src_port = ntohs(tcp->source);
+
+                uint16_t dst_port = ntohs(tcp->dest);
+
+                // Calculating the TCP payload pointer by adding the sizes of the Ethernet header, IP header, and TCP header
+                // (which is determined by the doff field that indicates the size of the TCP header in 32-bit words, so we multiply it by 4 to get the size in bytes)
+
+                unsigned char *tcp_payload = buffer + sizeof(struct ethhdr) + (ip->ihl * 4) + (tcp->doff * 4);
+
+                // Calculating the TCP payload size by subtracting the sizes of the Ethernet header, IP header, and TCP header from the total data size of the packet, this will give us the size of the actual data being transmitted in the TCP segment, which we can then analyze for application layer protocols like HTTP
+
+                int tcp_payload_size = data_size - (sizeof(struct ethhdr) + (ip->ihl * 4) + (tcp->doff * 4));
+
+
+                // If either the source or destination port is 80, we will analyze the TCP payload for HTTP data using the analyze_http function from app_analyzer.c, we pass the pointer
+
+                if (src_port == 80 || dst_port == 80)
+
+                {
+
+                analyze_http(tcp_payload, tcp_payload_size);
+
+                }
 
 
                 }
